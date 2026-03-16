@@ -26,7 +26,10 @@ const db = getFirestore(firebaseApp);
 // Nodemailer Config
 // Brevo (Transactional Email) Config
 const brevoEmailApi = new SibApiV3Sdk.TransactionalEmailsApi()
-brevoEmailApi.authentications["api-key"].apiKey = process.env.BREVO_API_KEY
+brevoEmailApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+)
 
 async function sendEmail({ to, toName, subject, html }) {
   const email = new SibApiV3Sdk.SendSmtpEmail()
