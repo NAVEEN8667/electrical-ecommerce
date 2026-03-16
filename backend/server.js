@@ -28,15 +28,35 @@ if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
 }
 
 // Brevo (Transactional Email) Config
+const BREVO_API_KEY = process.env.BREVO_API_KEY?.trim()
+const BREVO_SENDER_EMAIL = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "").trim()
+
+if (!BREVO_API_KEY) {
+  console.error("FATAL ERROR: BREVO_API_KEY is missing.")
+}
+
+if (BREVO_API_KEY?.startsWith("xsmtpsib-")) {
+  console.warn("BREVO_API_KEY appears to be an SMTP key (xsmtpsib-). Use Brevo API key from SMTP & API > API Keys (xkeysib-) for SDK calls.")
+}
+
 const brevoEmailApi = new SibApiV3Sdk.TransactionalEmailsApi()
 brevoEmailApi.setApiKey(
   SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY
+  BREVO_API_KEY
 )
+
+function getBrevoErrorMessage(err) {
+  const responseBody = err?.response?.body
+  if (typeof responseBody === "string" && responseBody.trim()) return responseBody
+  if (responseBody?.message) return responseBody.message
+  if (responseBody?.code) return `Brevo error code: ${responseBody.code}`
+  if (err?.message) return err.message
+  return "Unknown email provider error"
+}
 
 async function sendEmail({ to, toName, subject, html }) {
   const email = new SibApiV3Sdk.SendSmtpEmail()
-  email.sender = { name: "SAI RAM Store", email: process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER }
+  email.sender = { name: "SAI RAM Store", email: BREVO_SENDER_EMAIL }
   email.to = [{ email: to, name: toName || to }]
   email.subject = subject
   email.htmlContent = html
@@ -182,8 +202,9 @@ app.post("/api/otp/send", async (req, res) => {
     console.log(`OTP sent and stored in Firestore for: ${email}`);
     res.json({ success: true, message: "OTP sent successfully to your email." });
   } catch (err) {
-    console.error("Failed to process OTP request:", err);
-    res.status(500).json({ success: false, message: "Failed to send OTP. Check server configuration." });
+    const emailError = getBrevoErrorMessage(err)
+    console.error("Failed to process OTP request:", emailError)
+    res.status(500).json({ success: false, message: `Failed to send OTP: ${emailError}` });
   }
 });
 
