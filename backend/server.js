@@ -3,7 +3,7 @@ const cors = require("cors")
 const dotenv = require("dotenv")
 const Razorpay = require("razorpay")
 const crypto = require("crypto")
-const nodemailer = require("nodemailer")
+const SibApiV3Sdk = require("@getbrevo/brevo")
 const { initializeApp } = require("firebase/app")
 const { getFirestore, collection, addDoc, getDocs, query, where, deleteDoc, doc } = require("firebase/firestore")
 dotenv.config()
@@ -27,14 +27,18 @@ if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
   console.error("FATAL ERROR: Razorpay keys are not defined in .env file.")
 }
 
-// Nodemailer Config
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-})
+// Brevo (Transactional Email) Config
+const brevoEmailApi = new SibApiV3Sdk.TransactionalEmailsApi()
+brevoEmailApi.authentications["api-key"].apiKey = process.env.BREVO_API_KEY
+
+async function sendEmail({ to, toName, subject, html }) {
+  const email = new SibApiV3Sdk.SendSmtpEmail()
+  email.sender = { name: "SAI RAM Store", email: process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER }
+  email.to = [{ email: to, name: toName || to }]
+  email.subject = subject
+  email.htmlContent = html
+  return brevoEmailApi.sendTransacEmail(email)
+}
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
@@ -117,9 +121,8 @@ app.post("/api/payment/verify", (req, res) => {
 app.post("/api/admin/notify-order", async (req, res) => {
   try {
     const orderData = req.body
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER, // Notifying yourself
+    await sendEmail({
+      to: process.env.EMAIL_USER,
       subject: `New Order Received: #${orderData.orderId}`,
       html: `
         <h2>New Order from ${orderData.userName}</h2>
@@ -131,9 +134,7 @@ app.post("/api/admin/notify-order", async (req, res) => {
         <h4>Shipping Address:</h4>
         <p>${orderData.shippingAddress.address}, ${orderData.shippingAddress.city} - ${orderData.shippingAddress.zip}</p>
       `,
-    }
-
-    await transporter.sendMail(mailOptions)
+    })
     res.json({ success: true, message: "Admin notified" })
   } catch (err) {
     console.error("Admin notification error:", err)
@@ -160,8 +161,7 @@ app.post("/api/otp/send", async (req, res) => {
     });
 
     // 2. Send the email
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    await sendEmail({
       to: email,
       subject: "Your SAI RAM Signup OTP",
       html: `
@@ -175,9 +175,7 @@ app.post("/api/otp/send", async (req, res) => {
           <p style="color: #64748b; font-size: 14px;">This code will expire in 10 minutes. If you didn't request this, please ignore this email.</p>
         </div>
       `,
-    }
-
-    await transporter.sendMail(mailOptions);
+    });
     console.log(`OTP sent and stored in Firestore for: ${email}`);
     res.json({ success: true, message: "OTP sent successfully to your email." });
   } catch (err) {

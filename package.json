@@ -10,6 +10,7 @@
     "dev:backend": "cd backend && node server.js"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^2.2.0",
     "express": "^5.2.1",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
