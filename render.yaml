@@ -28,7 +28,9 @@ services:
         sync: false
       - key: EMAIL_USER
         sync: false
-      - key: EMAIL_PASS
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
